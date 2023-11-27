@@ -1,0 +1,211 @@
+---
+title: "Designing a new supermarket"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+
+
+```{r, echo = FALSE, results = "hide"}
+###########################################
+#### EDIT NUMBERS IN THIS SECTION #########
+###########################################
+num_servers_selfcheckout = 0   # number of checkout operators
+num_servers_staffed = 7        # number of checkout operators > 0
+
+simulation_length = 1000  # number of minutes
+###########################################
+```
+
+
+
+
+
+```{r, echo = FALSE, results = "hide"}
+lambda_express = 4               # number of customers arriving per minute
+lambda_regular = 1              # number of customers arriving per minute
+
+average_service_time_express = 1 # number of minutes
+average_service_time_regular = 5 # number of minutes
+
+mu_express = 1/average_service_time_express
+mu_regular = 1/average_service_time_regular
+
+cost = 10*num_servers_selfcheckout + 100*num_servers_staffed
+```
+
+
+
+
+```{r setup, include=FALSE, message = FALSE}
+packages_needed <- c("tidyverse", "flexdashboard", 
+                     "simmer","simmer.plot",
+                     "plotrix", "grDevices", 
+                     "kableExtra")
+
+packages_to_install <- packages_needed[!packages_needed %in%
+                                         installed.packages()]
+sapply(packages_to_install, install.packages,
+       dependencies=TRUE, repos="https://cloud.r-project.org")
+sapply(packages_needed, require, character=TRUE)
+
+knitr::opts_chunk$set(echo = FALSE, 
+                      results = "hide", 
+                      message = FALSE)
+
+
+show_theory = FALSE
+
+source("queueing_functions.R")
+```
+
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+### **Summary of parameters**
+
+
+
+* Number of self-checkouts = `r num_servers_selfcheckout`
+* Number of staffed-checkouts = `r num_servers_staffed`
+* Express Customers 
+  - Arrival rate, $\lambda$ = `r lambda_express` per minute
+  - Service rate, $\mu$ = `r mu_express` per minute
+* Regular Customers 
+  - Arrival rate, $\lambda$ = `r lambda_regular` per minute
+  - Service rate, $\mu$ = `r mu_regular` per minute
+
+
+### **Queue Layout: **  `r paste0("Cost: $", cost)`
+
+```{r, fig.dim = c(7, 8)}
+par(mfrow = c(1,1))
+if(num_servers_selfcheckout>0){
+  par(mfrow = c(2,1))
+  plot_queue_layout(num_servers_selfcheckout, type_of_queue="one_line")
+}
+plot_queue_layout(num_servers_staffed, type_of_queue = "individual_lines")
+ 
+```
+
+
+ 
+```{r, echo = FALSE, results = "hide"}
+# Run simulation
+mmc.env <- run_simulation_checkouts(lambda_express,
+                                    lambda_regular,
+                                    mu_express,
+                                    mu_regular,
+                                    num_servers_selfcheckout,
+                                    num_servers_staffed,
+                                    simulation_length,
+                                    policy = "shortest-queue")
+
+```
+
+
+### **Queue Performance**
+```{r, results = "asis"}
+ options(knitr.kable.NA = '')
+q <- plot_number_in_queue(mmc.env, num_per_row=3)
+q <- get_performance_checkouts(mmc.env, q)
+
+print_table_checkouts(q, include_theory = FALSE, comparison= c(average_service_time_express, average_service_time_regular, NA))
+```
+
+
+
+Column {data-width=600}
+-----------------------------------------------------------------------
+### **Number in the queue**
+
+```{r, fig.dim = c(9, 12)}
+q$graph
+
+```
+
+
+
+
+```{r, eval = FALSE}
+nreps = 30
+summary_df <- expand_grid(num_self = 4:7, num_staff = 6, j = 1:nreps)
+summary_df <- summary_df %>% mutate(
+  cost = 10*num_self + 100*num_staff,
+  Wq_Exp = NA*0,
+  Wq_Reg = NA*0,
+  Wq_All = NA*0,
+) %>%filter(cost <=1000)
+
+for(i in 1:dim(summary_df)[1]){
+#for(j in 1:nreps){
+  print(i)
+#for(i in 1:3){
+mmc.env <- run_simulation_checkouts(lambda_express,
+                                    lambda_regular,
+                                    mu_express,
+                                    mu_regular,
+                                    num_servers_selfcheckout=summary_df[i,"num_self"] %>%pull(),
+                                    num_servers_staffed=summary_df[i,"num_staff"]%>%pull(),
+                                    simulation_length=10000,
+                                    policy = "shortest-queue")
+q <- plot_number_in_queue(mmc.env, num_per_row=3)
+q <- get_performance_checkouts(mmc.env, q)
+summary_df[i,5:7] <- t(q$results$Wq_sim)
+#print(summary_df)
+}
+#}
+
+summary_df <- summary_df %>% mutate(id = row_number())
+
+summary_df %>% group_by(num_self, num_staff) %>% 
+  summarise(
+    Wq_Exp_mean = mean(Wq_Exp),
+    Wq_Reg_mean = mean(Wq_Reg),
+    Wq_Exp_probg1 = sum(Wq_Exp>1)/nreps,
+    #Wq_Exp_probl1 = sum(Wq_Exp<1)/nreps,
+    Wq_Reg_probg5 = sum(Wq_Reg>5)/nreps
+    
+  )
+  
+summary_df %>% ggplot()+
+  geom_histogram(aes(x=Wq_Exp)) +
+  facet_wrap(vars(num_self, num_staff), scales = "free")
+```
+
+
+
+```{r, eval = FALSE}
+summary_df <- expand_grid(num_self = 4:10, num_staff = 6)
+summary_df <- summary_df %>% mutate(
+  cost = 10*num_self + 100*num_staff,
+  Wq_Exp = NA*0,
+  Wq_Reg = NA*0,
+  Wq_All = NA*0,
+) %>%filter(cost <=1000)
+
+for(i in 1:dim(summary_df)[1]){
+print(i)
+#for(i in 1:3){
+mmc.env <- run_simulation_checkouts(lambda_express,
+                                    lambda_regular,
+                                    mu_express,
+                                    mu_regular,
+                                    num_servers_selfcheckout=summary_df[i,"num_self"] %>%pull(),
+                                    num_servers_staffed=summary_df[i,"num_staff"]%>%pull(),
+                                    simulation_length=10000,
+                                    policy = "shortest-queue")
+q <- plot_number_in_queue(mmc.env, num_per_row=3)
+q <- get_performance_checkouts(mmc.env, q)
+summary_df[i,4:6] <- t(q$results$Wq_sim)
+}
+
+summary_df <- summary_df %>% mutate(id = row_number())
+
+summary_df %>% filter(Wq_Exp  <= 1 & Wq_Reg <=5 & cost <=700)
+
+```
+
+

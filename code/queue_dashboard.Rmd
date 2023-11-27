@@ -1,0 +1,180 @@
+---
+title: "Modelling Queues"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+
+
+```{r, echo = FALSE, results = "hide"}
+###########################################
+#### EDIT NUMBERS IN THIS SECTION #########
+###########################################
+
+lambda = 1                 # number of customers arriving per minute
+mu = 2                     # number of customers served per minute
+num_servers = 1            # number of checkout operators
+simulation_length = 100     # number of minutes
+
+
+average_service_time = 1/mu  # number of minutes 
+rho = lambda/(mu*num_servers)# traffic intensity
+
+###########################################
+```
+
+
+
+
+
+```{r setup, include=FALSE, message = FALSE}
+packages_needed <- c("tidyverse", "flexdashboard", 
+                     "simmer","simmer.plot",
+                     "plotrix", "grDevices", 
+                     "kableExtra")
+
+packages_to_install <- packages_needed[!packages_needed %in%
+                                         installed.packages()]
+sapply(packages_to_install, install.packages,
+       dependencies=TRUE, repos="https://cloud.r-project.org")
+sapply(packages_needed, require, character=TRUE)
+
+knitr::opts_chunk$set(echo = FALSE, 
+                      results = "hide", 
+                      message = FALSE)
+
+source("Code/queueing_functions.R")
+show_theory = FALSE
+```
+
+
+
+
+
+
+A single queue with $n$ servers
+=====================================  
+Row {data-height=200}
+-----------------------------------------------------------------------
+### **Summary of parameters**
+
+```{r}
+type_of_queue = "one_line"
+```
+
+* Arrival rate, $\lambda$ = `r lambda` per minute
+* Service rate, $\mu$ = `r mu` per minute
+* Number of servers, $n$= `r num_servers`
+* Type of queue = `r type_of_queue`
+* Length of simulation = $`r simulation_length`$ min = $`r round(simulation_length/60, 2)`$ hours
+* Traffic intensity, $\rho$ = $`r rho`$ 
+
+### **Queue Layout**
+
+```{r, fig.dim = c(7, 4)}
+plot_queue_layout(num_servers, type_of_queue)
+
+```
+
+
+ 
+```{r, echo = FALSE, results = "hide"}
+# Run simulation
+mmc.env <-run_simulation(lambda, mu, num_servers, 
+                         simulation_length, 
+                         type_of_queue = type_of_queue)
+```
+
+
+Row {data-height=400}
+-----------------------------------------------------------------------
+### **Number in the queue**
+
+```{r, fig.dim = c(12, 4)}
+q <- plot_number_in_queue(mmc.env)
+q$graph
+```
+
+
+Row {data-height=300}
+-----------------------------------------------------------------------
+### **Performance Measures**
+```{r, results = "asis"}
+q <- get_performance(mmc.env, q, include_theory = show_theory,
+                             lambda, mu, num_servers, type_of_queue)
+
+print_table(q,include_theory = show_theory)
+```
+
+
+$n$ queues with $n$ servers {data-orientation=rows}
+=====================================  
+
+
+```{r}
+type_of_queue = "individual_lines"
+policy = "random"
+#policy = "shortest-queue"
+
+```
+
+Row {data-height=200}
+-----------------------------------------------------------------------
+### **Summary of parameters**
+
+* Arrival rate, $\lambda$ = `r lambda` per minute
+* Service rate, $\mu$ = `r mu` per minute
+* Number of servers, $n$= `r num_servers`
+* Type of queue = `r type_of_queue`
+* Length of simulation = $`r simulation_length`$ min = $`r round(simulation_length/60, 2)`$ hours
+* Traffic intensity, $\rho$ = $`r rho`$ 
+
+
+### **Queue Layout**
+
+```{r, fig.dim = c(7, 4)}
+plot_queue_layout(num_servers, type_of_queue)
+
+```
+
+
+ 
+
+
+```{r, echo = FALSE, results = "hide"}
+# Run simulation
+mmc.env <-run_simulation(lambda, mu, num_servers, 
+                         simulation_length, 
+                         type_of_queue = type_of_queue,
+                         policy =  policy)
+```
+
+
+ 
+
+Row {data-height=400}
+-----------------------------------------------------------------------
+### **Number in the queue**
+
+```{r, fig.dim = c(12, 4)}
+q <- plot_number_in_queue(mmc.env)
+q$graph
+```
+
+
+Row {data-height=300}
+-----------------------------------------------------------------------
+
+### **Performance Measures**
+```{r, results = "asis"}
+q = get_performance(mmc.env, q, include_theory = show_theory,
+                             lambda, mu, num_servers, type_of_queue)
+
+print_table(q,include_theory = show_theory)
+```
+
+
+
+
