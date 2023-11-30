@@ -352,7 +352,8 @@ run_simulation_checkouts <- function(
     num_servers_selfcheckout,
     num_servers_staffed,
     simulation_length,
-    policy = "shortest-queue"){
+    policy = "shortest-queue" #policy = "random"
+    ){
 
   server_names1 <- c()
   server_names2 <- c()
@@ -371,7 +372,7 @@ run_simulation_checkouts <- function(
   mmc.trajectory.exp <-
     trajectory("Express Customer's path") %>%
     set_attribute("start_time", function() {now(mmc_env)}) %>%
-    select(server_names, policy = "shortest-queue") %>%
+    select(server_names, policy = policy) %>%
     #select(server_names, policy = "random") %>%
     seize_selected() %>%
     timeout(function() {rexp(1, mu_express)}) %>%
@@ -380,7 +381,7 @@ run_simulation_checkouts <- function(
   mmc.trajectory.reg <-
     trajectory("Customer's path") %>%
     set_attribute("start_time", function() {now(mmc_env)}) %>%
-    select(server_names2, policy = "shortest-queue") %>%
+    select(server_names2, policy = policy) %>%
     seize_selected() %>%
     timeout(function() {rexp(1, mu_regular)}) %>%
     release_selected()

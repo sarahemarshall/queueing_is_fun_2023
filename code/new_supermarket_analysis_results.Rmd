@@ -1,0 +1,189 @@
+---
+title: "Designing a new supermarket"
+author: "Sarah Marshall"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r, echo = FALSE, results = "hide"}
+###########################################
+#### EDIT NUMBERS IN THIS SECTION #########
+###########################################
+num_servers_selfcheckout = 4   # number of checkout operators
+num_servers_staffed = 7        # number of checkout operators > 0
+
+simulation_length = 1000  # number of minutes
+
+policy = "shortest-queue" # how do customers join the queue
+#policy = "random"
+###########################################
+```
+
+
+
+
+
+```{r, echo = FALSE, results = "hide"}
+lambda_express = 4               # number of customers arriving per minute
+lambda_regular = 1              # number of customers arriving per minute
+
+average_service_time_express = 1 # number of minutes
+average_service_time_regular = 5 # number of minutes
+
+mu_express = 1/average_service_time_express
+mu_regular = 1/average_service_time_regular
+
+cost = 10*num_servers_selfcheckout + 100*num_servers_staffed
+```
+
+
+
+
+```{r setup, include=FALSE, message = FALSE}
+packages_needed <- c("tidyverse", "flexdashboard", 
+                     "simmer","simmer.plot",
+                     "plotrix", "grDevices", "xtable",
+                     "kableExtra")
+
+packages_to_install <- packages_needed[!packages_needed %in%
+                                         installed.packages()]
+sapply(packages_to_install, install.packages,
+       dependencies=TRUE, repos="https://cloud.r-project.org")
+sapply(packages_needed, require, character=TRUE)
+
+knitr::opts_chunk$set(echo = FALSE, 
+                      results = "hide", 
+                      message = FALSE)
+
+
+show_theory = FALSE
+
+source("Code/queueing_functions.R")
+```
+
+
+
+### **Summary of parameters**
+
+
+
+* Express Customers 
+  - Arrival rate, $\lambda$ = `r lambda_express` per minute
+  - Service rate, $\mu$ = `r mu_express` per minute
+* Regular Customers 
+  - Arrival rate, $\lambda$ = `r lambda_regular` per minute
+  - Service rate, $\mu$ = `r mu_regular` per minute
+
+* Simulation length = `r simulation_length` minutes `r simulation_length/60` hours
+
+
+```{r, eval = FALSE}
+# run simulation
+nreps = 30
+summary_df <- expand_grid(num_self = c(0, 4:10), num_staff = 6:7, j = 1:nreps)
+summary_df <- summary_df %>% mutate(
+  cost = 10*num_self + 100*num_staff,
+  Wq_Exp = NA*0,
+  Wq_Reg = NA*0,
+  Wq_All = NA*0,
+) %>%filter(cost <=700, cost > 600)
+
+for(i in 1:dim(summary_df)[1]){
+  print(i)
+mmc.env <- run_simulation_checkouts(lambda_express,
+                                    lambda_regular,
+                                    mu_express,
+                                    mu_regular,
+                                    num_servers_selfcheckout=summary_df[i,"num_self"] %>%pull(),
+                                    num_servers_staffed=summary_df[i,"num_staff"]%>%pull(),
+                                    simulation_length=simulation_length,
+                                    policy = policy)
+q <- plot_number_in_queue(mmc.env, num_per_row=3)
+q <- get_performance_checkouts(mmc.env, q)
+summary_df[i,5:7] <- t(q$results$Wq_sim)
+}
+
+write_csv(summary_df, paste0("output/simulation_output_", simulation_length, "_", nreps, ".csv"))
+```
+
+
+```{r}
+summary_df = read_csv("output/simulation_output_1000_30.csv")
+nreps = max(summary_df$j)
+```
+
+### **Simulation Results**
+
+* Number of simulation runs = `r nreps`
+
+
+```{r summarise_results1, results = "asis"}
+
+summary_df <- summary_df %>% mutate(id = row_number())
+
+
+# create summary table
+summary_table <- summary_df %>% group_by(num_self, num_staff) %>% 
+  summarise(
+    cost = unique(cost),
+    Wq_Exp_mean = mean(Wq_Exp),
+    Wq_Reg_mean = mean(Wq_Reg),
+    Wq_Exp_probg1 = sum(Wq_Exp>1)/nreps,
+    #Wq_Exp_probl1 = sum(Wq_Exp<1)/nreps,
+    Wq_Reg_probg5 = sum(Wq_Reg>5)/nreps
+    
+  )
+
+kable(summary_table, "html") %>%
+  kable_styling(full_width = F)
+
+```
+
+
+
+```{r summarise_results2}
+
+# Create long table for plot
+summary_df_long <- summary_df %>% pivot_longer(cols = starts_with("Wq"), values_to = "Wq", names_to = "CustomerType") %>% 
+  mutate(CustomerType = str_replace(CustomerType, "Wq_", ""),
+         CustomerType = str_replace(CustomerType, "Exp", "Express"),
+        CustomerType = str_replace(CustomerType, "Reg", "Regular"))
+
+
+summary_df_long_table <- summary_df_long %>%  group_by(num_self, num_staff, CustomerType) %>% 
+  summarise(
+    cost = mean(cost),
+    mean = mean(Wq),
+    min = min(Wq),
+    max = max(Wq),
+    probg1 = sum(Wq>1)/nreps,
+    #Wq_Exp_probl1 = sum(Wq_Exp<1)/nreps,
+    probg5 = sum(Wq>5)/nreps,
+    .groups = "keep"
+    
+  ) %>% mutate(Ws = case_when(CustomerType=="Express" ~ average_service_time_express,
+                              CustomerType=="Regular" ~average_service_time_regular,
+                              TRUE ~ NA)) %>% 
+  ungroup() %>% group_by(CustomerType) %>%
+  mutate(
+  group_max = max(max)
+               )
+  
+               
+temp <- summary_df_long_table %>% pivot_longer(cols=any_of(c("Ws", "mean", "min", "max")), names_to = "Type", values_to = "value") %>% filter(CustomerType!="All")
+```
+
+```{r histogram, fig.height = 12, fig.width = 8, out.width = "100%"}
+summary_df_long %>% filter(CustomerType != "All", num_staff < 7) %>% ggplot() + geom_histogram(aes(x=Wq), bins=20) +
+  facet_grid(rows=vars(num_self, num_staff), cols =vars(CustomerType), scales = "free", labeller = label_both)+
+  labs(x = "Expected time in queue", y = "Frequency", 
+       title = paste0("Expected waiting time by customer type for different configurations\nn=", nreps, " simulation runs"),
+       )+
+  geom_vline(mapping=aes(xintercept =value, col = Type#, lty=Type
+                         ), linewidth=1.5, data = temp %>%filter(Type%in%c("mean", "Ws")))+
+  geom_text(mapping = aes(x = group_max, y = 5, label = paste0("$",cost)), data = summary_df_long_table %>% filter(CustomerType!="All"), )
+
+```
+
+

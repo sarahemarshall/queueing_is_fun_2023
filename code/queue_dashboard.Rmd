@@ -15,7 +15,7 @@ output:
 
 lambda = 1                 # number of customers arriving per minute
 mu = 2                     # number of customers served per minute
-num_servers = 1            # number of checkout operators
+num_servers = 2            # number of checkout operators
 simulation_length = 100     # number of minutes
 
 
@@ -56,7 +56,7 @@ show_theory = FALSE
 
 A single queue with $n$ servers
 =====================================  
-Row {data-height=200}
+Row {data-height=250}
 -----------------------------------------------------------------------
 ### **Summary of parameters**
 
@@ -80,7 +80,7 @@ plot_queue_layout(num_servers, type_of_queue)
 
 
  
-```{r, echo = FALSE, results = "hide"}
+```{r runsim1, echo = FALSE, results = "hide"}
 # Run simulation
 mmc.env <-run_simulation(lambda, mu, num_servers, 
                          simulation_length, 
@@ -92,16 +92,16 @@ Row {data-height=400}
 -----------------------------------------------------------------------
 ### **Number in the queue**
 
-```{r, fig.dim = c(12, 4)}
+```{r plotsim1, fig.dim = c(12, 4)}
 q <- plot_number_in_queue(mmc.env)
 q$graph
 ```
 
 
-Row {data-height=300}
+Row {data-height=350}
 -----------------------------------------------------------------------
 ### **Performance Measures**
-```{r, results = "asis"}
+```{r perform1, results = "asis"}
 q <- get_performance(mmc.env, q, include_theory = show_theory,
                              lambda, mu, num_servers, type_of_queue)
 
@@ -120,7 +120,7 @@ policy = "random"
 
 ```
 
-Row {data-height=200}
+Row {data-height=250}
 -----------------------------------------------------------------------
 ### **Summary of parameters**
 
@@ -164,7 +164,7 @@ q$graph
 ```
 
 
-Row {data-height=300}
+Row {data-height=350}
 -----------------------------------------------------------------------
 
 ### **Performance Measures**
