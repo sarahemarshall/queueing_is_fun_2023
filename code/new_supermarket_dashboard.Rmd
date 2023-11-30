@@ -34,8 +34,8 @@ mu_express = 1/average_service_time_express
 mu_regular = 1/average_service_time_regular
 
 cost = 10*num_servers_selfcheckout + 100*num_servers_staffed
-#policy = "shortest-queue"
-policy = "random"
+policy = "shortest-queue"
+#policy = "random"
 
 ```
 
