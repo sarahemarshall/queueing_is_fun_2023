@@ -22,7 +22,7 @@ This github repo contains files related to my talk at the 2023 NZ Stats Teachers
 * From this github repo, select the green "code" button and select download .zip
 * Extract zip file in a location of your choice
 * Open queueing.Rproj in RStudio
-* For task 1: open queue_dashboard.Rmd in RStudio and click the "knit" button
-* For task 2: open new_supermarket_dashboard.Rmd in RStudio and click the "knit" button
-* For task 2 analysis: open new_supermarket_analysis_results.Rmd
+* For task 1: code/open queue_dashboard.Rmd in RStudio and click the "knit" button
+* For task 2: code/open new_supermarket_dashboard.Rmd in RStudio and click the "knit" button
+* For task 2 analysis: code/open new_supermarket_analysis_results.Rmd
   
