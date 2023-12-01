@@ -5,7 +5,8 @@ This github repo contains files related to my talk at the 2023 NZ Stats Teachers
 
 ## To view the slides
 
-* Select Intro_to_Queueing_Theory_2023.pdf
+* Select Intro_to_Queueing_Theory_2023.pdf.
+* Click the ... and choose download 
 
 ## To run the simulations
 
@@ -15,3 +16,5 @@ This github repo contains files related to my talk at the 2023 NZ Stats Teachers
 * Task 2: <https://annafergusson.online/queue_funtimes/task2.html>
 
 ### Option 2: Download and run in RStudio
+
+* Dow
