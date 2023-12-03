@@ -71,12 +71,12 @@ source("Code/queueing_functions.R")
   - Arrival rate, $\lambda$ = `r lambda_regular` per minute
   - Service rate, $\mu$ = `r mu_regular` per minute
 
-* Simulation length = `r simulation_length` minutes `r simulation_length/60` hours
+* Simulation length = `r simulation_length` minutes `r round(simulation_length/60,2)` hours
 
 
 ```{r, eval = FALSE}
 # run simulation
-nreps = 50
+nreps = 100
 summary_df <- expand_grid(num_self = c(0, 4:10), num_staff = 6:7, j = 1:nreps)
 summary_df <- summary_df %>% mutate(
   cost = 10*num_self + 100*num_staff,
@@ -105,7 +105,7 @@ write_csv(summary_df, paste0("output/simulation_output_", simulation_length, "_"
 
 
 ```{r}
-summary_df = read_csv("output/simulation_output_10000_50.csv")
+summary_df = read_csv("output/simulation_output_10000_100.csv")
 nreps = max(summary_df$j)
 ```
 
@@ -193,7 +193,7 @@ summary_df_long %>% filter(CustomerType != "All", num_staff < 7) %>%
 
 
 
-```{r histogram, fig.height = 4, fig.width = 7, out.width = "100%", eval=FALSE}
+```{r histogram2, fig.height = 4, fig.width = 7, out.width = "100%", eval=FALSE}
 for(i in 4:10){
 summary_df_long %>% filter(CustomerType != "All", num_staff < 7, num_self==i) %>% ggplot() + geom_histogram(aes(x=Wq), bins=20) +
   facet_grid(rows=vars(num_self, num_staff), cols =vars(CustomerType), scales = "free", labeller = label_both)+
@@ -204,7 +204,7 @@ summary_df_long %>% filter(CustomerType != "All", num_staff < 7, num_self==i) %>
                          ), linewidth=1.5, data = temp %>%filter(Type%in%c("meanWq", "Ws"), num_staff < 7, , num_self==i))+
   geom_text(mapping = aes(x = group_max, y = 5, label = paste0("$",cost)), data = summary_df_long_table %>% filter(CustomerType!="All", num_staff < 7, , num_self==i) )
   
-  ggsave(paste0("output/simulation_graph_", simulation_length, "_", nreps, "W_q_self", i, ".pdf"), height = 4, width = 7)
+  ggsave(paste0("output/simulation_graph_", simulation_length, "_", nreps, "W_q_self", i, ".pdf"), height = 4, width = 8)
 }
 ```
 
