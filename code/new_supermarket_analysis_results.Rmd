@@ -150,9 +150,9 @@ summary_df_long <- summary_df %>% pivot_longer(cols = starts_with("Wq"), values_
 summary_df_long_table <- summary_df_long %>%  group_by(num_self, num_staff, CustomerType) %>% 
   summarise(
     cost = mean(cost),
-    mean = mean(Wq),
-    min = min(Wq),
-    max = max(Wq),
+    meanWq = mean(Wq),
+    minWq = min(Wq),
+    maxWq = max(Wq),
     probg1 = sum(Wq>1)/nreps,
     #Wq_Exp_probl1 = sum(Wq_Exp<1)/nreps,
     probg5 = sum(Wq>5)/nreps,
@@ -163,23 +163,49 @@ summary_df_long_table <- summary_df_long %>%  group_by(num_self, num_staff, Cust
                               TRUE ~ NA)) %>% 
   ungroup() %>% group_by(CustomerType) %>%
   mutate(
-  group_max = max(max)
+  group_max = max(maxWq)
                )
   
                
-temp <- summary_df_long_table %>% pivot_longer(cols=any_of(c("Ws", "mean", "min", "max")), names_to = "Type", values_to = "value") %>% filter(CustomerType!="All")
+temp <- summary_df_long_table %>% pivot_longer(cols=any_of(c("Ws", "meanWq", "minWq", "maxWq")), names_to = "Type", values_to = "value") %>% filter(CustomerType!="All")
 ```
 
 ```{r histogram, fig.height = 12, fig.width = 8, out.width = "100%"}
-summary_df_long %>% filter(CustomerType != "All", num_staff < 7) %>% ggplot() + geom_histogram(aes(x=Wq), bins=20) +
+summary_df_long %>% filter(CustomerType != "All", num_staff < 7) %>% 
+  ggplot() + geom_histogram(aes(x=Wq), bins=20) +
+  facet_grid(rows=vars(num_self, num_staff),
+             cols =vars(CustomerType), 
+             scales = "free", labeller = label_both)+
+  labs(x = "Expected time in queue", y = "Frequency", 
+       title = paste0("Expected waiting time by customer type for different configurations\nn=", 
+                      nreps, " simulation runs"),
+       )+# xlim(0, 20)+
+  geom_vline(mapping=aes(xintercept =value, 
+                         col = Type#, lty=Type
+                         ), linewidth=1.5, 
+             data = temp %>%
+               filter(Type%in%c("meanWq", "Ws"), num_staff < 7))+
+  geom_text(mapping = aes(x = group_max, y = 5, label = paste0("$",cost)), 
+            data = summary_df_long_table %>% 
+              filter(CustomerType!="All", num_staff < 7) )
+
+```
+
+
+
+```{r histogram, fig.height = 4, fig.width = 7, out.width = "100%", eval=FALSE}
+for(i in 4:10){
+summary_df_long %>% filter(CustomerType != "All", num_staff < 7, num_self==i) %>% ggplot() + geom_histogram(aes(x=Wq), bins=20) +
   facet_grid(rows=vars(num_self, num_staff), cols =vars(CustomerType), scales = "free", labeller = label_both)+
   labs(x = "Expected time in queue", y = "Frequency", 
        title = paste0("Expected waiting time by customer type for different configurations\nn=", nreps, " simulation runs"),
-       )+# xlim(0, 20)+
+       )+ expand_limits(x=0)+
   geom_vline(mapping=aes(xintercept =value, col = Type#, lty=Type
-                         ), linewidth=1.5, data = temp %>%filter(Type%in%c("mean", "Ws"), num_staff < 7))+
-  geom_text(mapping = aes(x = group_max, y = 5, label = paste0("$",cost)), data = summary_df_long_table %>% filter(CustomerType!="All", num_staff < 7) )
-
+                         ), linewidth=1.5, data = temp %>%filter(Type%in%c("meanWq", "Ws"), num_staff < 7, , num_self==i))+
+  geom_text(mapping = aes(x = group_max, y = 5, label = paste0("$",cost)), data = summary_df_long_table %>% filter(CustomerType!="All", num_staff < 7, , num_self==i) )
+  
+  ggsave(paste0("output/simulation_graph_", simulation_length, "_", nreps, "W_q_self", i, ".pdf"), height = 4, width = 7)
+}
 ```
 
 

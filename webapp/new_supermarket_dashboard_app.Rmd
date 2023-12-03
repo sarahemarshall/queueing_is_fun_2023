@@ -23,6 +23,7 @@ knitr::opts_chunk$set(echo = FALSE,
                       
 ## no need to load libraries
 ## as these are part of the codesharey3 package
+## see https://github.com/annafergusson/codesharey3
 
 ## code from queueing_functions.R
 
