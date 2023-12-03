@@ -12,8 +12,8 @@ This github repo contains files related to my talk at the 2023 NZ Stats Teachers
 
 ### Option 1: Run in online interface (no downloads required)
 
-* Task 1: <https://annafergusson.online/queue_funtimes/task1.html>
-* Task 2: <https://annafergusson.online/queue_funtimes/task2.html>
+* Task 1: <https://sarahemarshall.github.io/queueing_is_fun_2023/webapp/task1.html>
+* Task 2: <https://sarahemarshall.github.io/queueing_is_fun_2023/webapp/task2.html>
 
 ### Option 2: Download and run in RStudio
 
