@@ -184,3 +184,495 @@ print_table(q,include_theory = show_theory)
 
 
 
+=======
+```{r setup, include=FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      results = "hide", 
+                      message = FALSE)
+                      
+## no need to load libraries
+## as these are part of the codesharey3 package
+
+## code from queueing_functions.R
+
+run_simulation <- function(
+    lambda, mu, num_servers, simulation_length, type_of_queue,
+    policy = "random"){
+
+  if(type_of_queue == "one_line"){
+    # Define queue
+    mmc.trajectory <- trajectory() %>%
+      seize("checkouts", amount=1) %>%
+      timeout(function() rexp(1, mu)) %>%
+      release("checkouts", amount=1)
+
+    #Run simulation
+    mmc_env <- simmer() %>%
+      add_resource("checkouts", capacity=num_servers, queue_size=Inf) %>%
+      add_generator("Customer", mmc.trajectory,
+                    function() rexp(1, lambda)) %>%
+      run(until=simulation_length)
+
+    return(mmc_env)
+
+
+
+  }else if(type_of_queue == "individual_lines"){
+
+    server_names <-    paste0("checkout", ifelse(num_servers>=10 & 1:num_servers < 10,
+                                                 "0", ""),
+                              1:num_servers)
+
+    mmc.trajectory <-
+      trajectory("Customer's path") %>%
+      set_attribute("start_time", function() {now(mmc_env)}) %>%
+      select(server_names, policy = policy) %>%
+      seize_selected() %>%
+      timeout(function() {rexp(1, mu)}) %>%
+      release_selected()
+
+    mmc_env <-
+      simmer("mmc_env")
+
+    for(i in 1:num_servers){
+      mmc_env <- mmc_env %>% add_resource(server_names[i])
+    }
+    mmc_env <- mmc_env %>%
+      add_generator("Customer", mmc.trajectory, function() rexp(1, lambda))
+
+    mmc_env <- mmc_env %>%
+      run(until=simulation_length)
+
+    return(mmc_env)
+  }
+
+
+}
+
+plot_queue_layout <- function( num_servers, type_of_queue){
+
+  par(mar=c(5.1, 4.1, 4.1, 2.1)-c(5,4,4,2))
+
+  plot(c(0, 100), c(0, 100), type= "n", xlab = "", ylab = "", axes = FALSE)
+
+  height = 10
+  mylwd = 2
+
+  if(type_of_queue == "one_line"){
+    num_queues = 1
+
+      # Draw queue
+    if(num_queues==1){
+      queues_y_pos = c(40)
+      rect(0, 40, 40, 60, lwd =mylwd)
+
+      # Draw service
+      rect(60, 10, 80, 90, lwd = mylwd)
+      arrows(45, 50, 55, 50, length = 0.15, lwd = mylwd)
+      servers_y_pos = (80/(num_servers+1))*(c(1:num_servers))+10
+      for(i in 1:num_servers){
+        draw.circle(70, servers_y_pos[i], height/4, lwd = mylwd)
+        arrows(85, servers_y_pos[i], 95, servers_y_pos[i], length = 0.15, lwd = mylwd)
+      }
+    }
+
+
+ }else if(type_of_queue == "individual_lines"){
+    num_queues = num_servers
+
+    queues_y_pos = (100/(num_queues+1))*(c(1:num_queues))
+
+
+    for(i in 1:num_queues){
+      rect(0, queues_y_pos[i]-height/2, 40, queues_y_pos[i]+height/2, lwd = mylwd)
+
+      # text(seq(5, 35, 5),  queues_y_pos[i], labels=emoji(emoji_queue), cex=emoji_size, #col='steelblue',
+      #     family='EmojiOne')
+
+
+      arrows(45, queues_y_pos[i], 55, queues_y_pos[i], length = 0.15, lwd = mylwd)
+      servers_y_pos <- queues_y_pos
+      rect(60, servers_y_pos[i]-height/2, 80, servers_y_pos[i]+height/2, lwd = mylwd)
+
+      for(i in 1:num_servers){
+        draw.circle(70, servers_y_pos[i], height/4, lwd = mylwd)
+        arrows(85, servers_y_pos[i], 95, servers_y_pos[i], length = 0.15, lwd = mylwd)
+      }
+
+
+    }
+
+  }
+}
+
+
+plot_number_in_queue <- function(env, print_theory = FALSE, text_size=20,
+                                 num_per_row = 4){
+  mmc.mon <- get_mon_resources(env)
+  graph <- plot(mmc.mon,
+                metric = "usage",
+                #names = server_names",
+                items =  c("system", "server", "queue"),
+                steps = FALSE)+ theme(text = element_text(size = text_size))
+
+  if(print_theory){
+    graph <- graph + geom_hline(aes(yintercept = Number, colour = Item),
+                                data = theory, #data
+                                alpha = 0.4, #transperancy
+                                size = 2  #line width
+    )  + annotate("text",
+                  x = now(env)*c(0.95, 1, 0.95),
+                  y = theory$Number,
+                  label = c("L", "L[s]", "L[q]"),
+                  parse=TRUE)
+  }
+
+  if(length(env$resources) >num_per_row){
+    graph <- graph + facet_wrap(~resource, ncol = num_per_row)
+  }
+
+  return(list(mmc.mon = mmc.mon, graph = graph))
+}
+
+
+
+get_performance <- function(mmc.env, q, include_theory,
+                            lambda, mu, num_servers, type_of_queue){
+
+  graph <- q$graph
+
+  L_sim_est <- graph$data %>%
+    group_by(item, resource) %>%
+    summarise(n = n(),
+              L_est_resource = mean[n]) %>%
+    group_by(item) %>%
+    summarise(L_est = sum(L_est_resource))
+
+
+  mmc.arrivals <- get_mon_arrivals(mmc.env) %>%
+    mutate(
+      t_system = end_time - start_time,
+      t_queue = t_system-activity_time,
+      t_service = activity_time,
+      service_start_time = end_time - activity_time) %>%
+    arrange(start_time)
+    #left_join(mmc.mon, by = c("start_time" = "time")) %>%
+    #mutate(CustomerType = substr(name, 1, 11))
+
+
+
+  W_sim <- mean(mmc.arrivals$t_system)
+  Wq_sim <- mean(mmc.arrivals$t_queue)
+  Ws_sim <- mean(mmc.arrivals$t_service)
+  mu_sim <- 1/Ws_sim
+  lambda_sim <- 1/mean(diff(c(0, (mmc.arrivals$start_time))))
+
+  results <- tibble(
+    Name = c("Arrival Rate", "Service Rate",
+             "Number in System", "Number in Service", "Number in Queue",
+             "Time in System", "Time in Service", "Time in Queue"),
+    Symbol = c("lambda", "mu",  "L", "L_s", "L_q", "W", "W_s", "W_q"),
+    Simulation = c(lambda_sim, mu_sim,
+                   as.numeric(L_sim_est$L_est),
+                   W_sim, Ws_sim, Wq_sim),
+  )
+
+  if(include_theory){
+    results <-mutate(results,
+                     Theory =  compute_theory(lambda, mu, num_servers, type_of_queue),
+                     Difference = Theory - Simulation
+    )
+  }
+
+  q$mmc.arrivals = mmc.arrivals
+  q$results = results
+  return(q)
+}
+
+
+get_performance_checkouts <- function(mmc.env, q){
+
+    graph <- q$graph
+
+    L_sim_est_resource <- graph$data %>%
+      group_by(item, resource) %>%
+      summarise(n = n(),
+                L_est_resource = mean[n])
+
+
+    L_sim_est_resource_type <-  graph$data %>%
+      mutate(resourceType= substr(resource, 1, 4)) %>%
+      group_by(item, resourceType) %>%
+      summarise(n = n(),
+                L_est_resource = mean[n])
+
+
+    L_sim_est_total <-L_sim_est_resource  %>%
+            group_by(item) %>%
+      summarise(L_est = sum(L_est_resource))
+
+    mmc.arrivals <- get_mon_arrivals(mmc.env) %>%
+      mutate(
+        t_system = end_time - start_time,
+        t_queue = t_system-activity_time,
+        t_service = activity_time,
+        service_start_time = end_time - activity_time,
+        CustomerType = substr(name, 1, 11)
+        ) %>%
+      arrange(start_time)
+    #%>%    left_join(mmc.mon, by = c("start_time" = "time"))
+
+
+
+  mmc.arr.sum <- mmc.arrivals %>%
+    group_by(CustomerType) %>%
+    mutate(
+      lambda_diff = start_time - lag(start_time)
+    ) %>%
+    summarise(
+      W_sim = mean(t_system),
+      Wq_sim = mean(t_queue),
+      Ws_sim = mean(t_service),
+      mu_sim = 1/Ws_sim,
+      lambda_sim = 1/mean(lambda_diff, na.rm=TRUE)
+    ) %>% bind_rows(
+    mmc.arrivals %>%
+    summarise(
+      W_sim = mean(t_system),
+      Wq_sim = mean(t_queue),
+      Ws_sim = mean(t_service),
+      mu_sim = 1/Ws_sim,
+      lambda_sim = 1/mean(start_time - lag(start_time), na.rm=TRUE)
+    )
+    )
+  mmc.arr.sum[3,1] = "AllCustomers"
+  #mmc.arr.sum <- mmc.arr.sum[, 1:2]
+  #L_sim_est_resource_type %>% arrange(resourceType)
+  q$mmc.arrivals = mmc.arrivals
+
+
+  q$results = mmc.arr.sum
+  return(q)
+
+
+}
+
+
+compute_theory <- function( lambda, mu, num_servers, type_of_queue){
+  theory <- rep(NA, 8)
+  if(type_of_queue=="one_line"){
+    rho <- lambda/(mu*num_servers)
+    rho
+
+    i <- 0:(num_servers-1)
+    pi0 <- 1/(sum((num_servers*rho)^i/factorial(i)) +
+                (num_servers*rho)^num_servers/(factorial(num_servers)*(1-rho)))
+    pi0
+
+    #Theoretical Values
+    Ls <-lambda/mu
+    Lq <- pi0*(num_servers*rho)^num_servers*rho/
+      (factorial(num_servers)*(1-rho)^2)
+    L <-  pi0*(num_servers*rho)^num_servers*rho/
+      (factorial(num_servers)*(1-rho)^2) + Ls
+    Ws <- 1/mu
+    Wq <- Lq/lambda
+    W <- L/lambda
+
+    theory <- c(lambda, mu,  L, Ls, Lq, W, Ws, Wq)
+  }else if(type_of_queue=="individual_lines"){
+
+    #Theoretical Values M/M/1 with multiple lines
+    lambda_ind  <- lambda/num_servers
+    rho <- lambda_ind/mu
+    L  <- rho/(1-rho)
+    Ls <- rho
+    Lq <- rho^2/(1-rho)
+    W  <- L/lambda_ind
+    Ws <- 1/mu
+    Wq <- rho/(mu-lambda_ind)
+    Var_L <- rho/(1-rho)^2
+    Var_W <- 1/((1-rho)^2*mu^2)
+
+
+    theory <- c(lambda, mu,  L*num_servers, Ls*num_servers, Lq*num_servers,
+                W, Ws, Wq)
+  }
+
+  return(theory)
+}
+
+
+print_table <- function(q, include_theory){
+  tab <-  kable(q$results)%>%
+    column_spec(1, width = "10em") %>%
+    column_spec(2, width = "1em") %>%
+    column_spec(3, width = "10em") #%>% #kable_material_dark() %>%
+  #kable_styling(bootstrap_options = "striped")
+
+  if(include_theory){
+    tab <-  tab %>%   column_spec(4, width = "10em")%>%
+      column_spec(5, width = "10em")
+  }
+  return(tab)
+
+}
+
+print_table_checkouts <- function(q, include_theory, comparison=NULL){
+  temp <-  q$results[,c(1,3)]
+  if(!is.null(comparison)) {
+    temp <- cbind(temp, `Average Service Time`=comparison)
+  }
+  colnames(temp)[2] = "Average Time in Queue (sim)"
+  tab <-  kable(temp)%>%
+     column_spec(1, width = "10em") %>%
+     column_spec(2, width = "10em")
+  if(!is.null(comparison)) {
+    tab <- tab %>%
+     column_spec(3, width = "10em")
+  }
+    # column_spec(4, width = "10em")#%>%
+    # column_spec(5, width = "10em")%>%
+    # column_spec(6, width = "10em")
+
+  return(tab)
+}
+
+
+```
+
+```{r, echo = FALSE, results = "hide"}
+# settings for this run
+show_theory = FALSE
+```
+
+::: col-xs-6
+
+:::: row
+## A single queue with $n$ servers
+
+::: col-xs-6
+### **Summary of parameters**
+
+```{r}
+type_of_queue = "one_line"
+average_service_time = 1/mu   # number of minutes 
+rho = lambda/(mu*num_servers) # traffic intensity
+```
+
+* Arrival rate, $\lambda$ = `r lambda` per minute
+* Service rate, $\mu$ = `r mu` per minute
+* Number of servers, $n$ = `r num_servers`
+* Type of queue = `r type_of_queue`
+* Length of simulation = $`r simulation_length`$ min = $`r round(simulation_length/60, 2)`$ hours
+* Traffic intensity, $\rho$ = $`r rho`$ 
+:::
+
+::: col-xs-6
+### **Queue Layout**
+
+```{r, fig.dim = c(7, 4)}
+plot_queue_layout(num_servers, type_of_queue)
+
+```
+:::
+
+
+```{r, echo = FALSE, results = "hide"}
+# Run simulation
+mmc.env <-run_simulation(lambda, mu, num_servers, 
+                         simulation_length, 
+                         type_of_queue = type_of_queue)
+```
+
+
+::: col-xs-12
+### **Number in the queue**
+
+```{r, fig.dim = c(12, 4)}
+q <- plot_number_in_queue(mmc.env)
+q$graph
+```
+:::
+
+
+::: col-xs-6
+### **Performance Measures**
+```{r, results = "asis"}
+q <- get_performance(mmc.env, q, include_theory = show_theory,
+                             lambda, mu, num_servers, type_of_queue)
+
+print_table(q,include_theory = show_theory)
+```
+:::
+::::
+
+:::
+
+::: col-xs-6
+
+:::: row
+## $n$ queues with $n$ servers {data-orientation=rows}
+
+
+```{r}
+type_of_queue = "individual_lines"
+policy = "random"
+#policy = "shortest-queue"
+average_service_time = 1/mu   # number of minutes 
+rho = lambda/(mu*1) # traffic intensity
+```
+
+::: col-xs-6
+### **Summary of parameters**
+
+* Arrival rate, $\lambda$ = `r lambda` per minute
+* Service rate, $\mu$ = `r mu` per minute
+* Number of servers, $n$ = `r num_servers`
+* Type of queue = `r type_of_queue`
+* Length of simulation = $`r simulation_length`$ min = $`r round(simulation_length/60, 2)`$ hours
+* Traffic intensity, $\rho$ = $`r rho`$ 
+
+:::
+
+::: col-xs-6
+
+### **Queue Layout**
+
+```{r, fig.dim = c(7, 4)}
+plot_queue_layout(num_servers, type_of_queue)
+
+```
+:::
+
+```{r, echo = FALSE, results = "hide"}
+# Run simulation
+mmc.env <-run_simulation(lambda, mu, num_servers, 
+                         simulation_length, 
+                         type_of_queue = type_of_queue,
+                         policy =  policy)
+```
+
+
+::: col-xs-12
+### **Number in the queue**
+
+```{r, fig.dim = c(12, 4)}
+q <- plot_number_in_queue(mmc.env)
+q$graph
+```
+:::
+
+::: col-xs-6
+### **Performance Measures**
+```{r, results = "asis"}
+q = get_performance(mmc.env, q, include_theory = show_theory,
+                             lambda, mu, num_servers, type_of_queue)
+
+print_table(q,include_theory = show_theory)
+```
+:::
+::::
+
+:::
+>>>>>>> aed8a743da56208279d1e80bbb376b16b2fcf8e2
