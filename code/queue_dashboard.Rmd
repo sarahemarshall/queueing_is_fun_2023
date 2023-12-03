@@ -18,10 +18,6 @@ mu = 2                     # number of customers served per minute
 num_servers = 2            # number of checkout operators
 simulation_length = 100     # number of minutes
 
-
-average_service_time = 1/mu  # number of minutes 
-rho = lambda/(mu*num_servers)# traffic intensity
-
 ###########################################
 ```
 
@@ -62,6 +58,11 @@ Row {data-height=250}
 
 ```{r}
 type_of_queue = "one_line"
+
+
+average_service_time = 1/mu  # number of minutes 
+rho = lambda/(mu*num_servers)# traffic intensity
+
 ```
 
 * Arrival rate, $\lambda$ = `r lambda` per minute
@@ -117,6 +118,11 @@ $n$ queues with $n$ servers {data-orientation=rows}
 type_of_queue = "individual_lines"
 policy = "random"
 #policy = "shortest-queue"
+
+
+average_service_time = 1/mu  # number of minutes 
+rho = lambda/(mu*1)# traffic intensity
+
 
 ```
 
